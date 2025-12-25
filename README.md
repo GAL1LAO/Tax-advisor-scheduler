@@ -1,13 +1,12 @@
 # Tax Advisor Appointment Scheduler Bot
 
-An AI-powered voice scheduling assistant that helps clients book appointments with a tax advisor. The bot features real-time video avatars, calendar integration, and automated email confirmations.
+An AI-powered voice scheduling assistant that helps clients book appointments with a tax advisor. The bot features natural voice interaction, calendar integration, and automated email confirmations.
 
 ## Features
 
 ### Core Capabilities
 
-- **Voice Interaction**: Natural conversation using Deepgram STT and Cartesia sonic-3 TTS
-- **Video Avatar**: Real-time AI video generation powered by Tavus
+- **Voice Interaction**: Natural conversation using Deepgram STT and Cartesia sonic-3 TTS (British Reading Lady voice)
 - **Smart Scheduling**: Natural language date parsing (today, tomorrow, next Monday, etc.)
 - **Calendar Integration**: Direct Google Calendar integration for checking availability and booking appointments
 - **Email Confirmations**: Automatic HTML email confirmations sent to clients via Gmail
@@ -37,7 +36,6 @@ You'll need API keys from the following services:
 - [Deepgram](https://console.deepgram.com/signup) - Speech-to-Text
 - [OpenAI](https://auth.openai.com/create-account) - LLM inference (GPT-4)
 - [Cartesia](https://play.cartesia.ai/sign-up) - Text-to-Speech (sonic-3 model)
-- [Tavus](https://tavus.io) - AI video avatar generation
 
 ### Google Cloud Setup
 
@@ -70,7 +68,6 @@ For calendar and email functionality:
 
    ```bash
    uv add google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
-   uv add "pipecat-ai[tavus]"
    ```
 
 4. Configure your API keys
@@ -87,8 +84,6 @@ For calendar and email functionality:
    DEEPGRAM_API_KEY=your_deepgram_api_key
    OPENAI_API_KEY=your_openai_api_key
    CARTESIA_API_KEY=your_cartesia_api_key
-   TAVUS_API_KEY=your_tavus_api_key
-   TAVUS_REPLICA_ID=your_tavus_replica_id
    ```
 
 5. Add Google OAuth credentials file
@@ -156,7 +151,6 @@ Weekend requests and out-of-hours appointments are politely rejected with altern
 - **Pipecat**: Voice AI pipeline framework
 - **Deepgram**: Real-time speech-to-text
 - **OpenAI GPT-4**: Natural language understanding and function calling
-- **Cartesia sonic-3**: High-quality text-to-speech
-- **Tavus**: Real-time AI video avatar generation
+- **Cartesia sonic-3**: High-quality text-to-speech (British Reading Lady voice)
 - **Google Calendar API**: Appointment scheduling
 - **Gmail API**: Email confirmations
