@@ -91,7 +91,16 @@ For calendar and email functionality:
    TAVUS_REPLICA_ID=your_tavus_replica_id
    ```
 
-5. Set up Google OAuth
+5. Add Google OAuth credentials file
+
+   Place your `credentials.json` file (downloaded from Google Cloud Console) in the project root directory:
+
+   ```bash
+   # The credentials.json file should be in the same directory as bot.py
+   # Example location: pipecat-quickstart/credentials.json
+   ```
+
+6. First run - Google OAuth authentication
 
    On first run, the bot will open a browser window for Google OAuth authentication. Grant access to:
    - Google Calendar (read/write)
