@@ -24,6 +24,7 @@ The AI assistant "Sarah" can:
 
 ## Prerequisites
 
+
 ### Environment
 
 - Python 3.10 or later
@@ -48,6 +49,8 @@ For calendar and email functionality:
 3. Create OAuth 2.0 credentials (Desktop application)
 4. Download the credentials file as `credentials.json`
 5. Place `credentials.json` in the project root directory
+
+If that is not working please  sign in to the provided google account to see the google calander items and the sent emails as well as use the provided `credentials.json`
 
 ## Setup
 
