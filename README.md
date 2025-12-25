@@ -1,173 +1,153 @@
-# Pipecat Quickstart
+# Tax Advisor Appointment Scheduler Bot
 
-Build and deploy your first voice AI bot in under 10 minutes. Develop locally, then scale to production on Pipecat Cloud.
+An AI-powered voice scheduling assistant that helps clients book appointments with a tax advisor. The bot features real-time video avatars, calendar integration, and automated email confirmations.
 
-**Two steps**: [🏠 Local Development](#run-your-bot-locally) → [☁️ Production Deployment](#deploy-to-production)
+## Features
 
-## Step 1: Local Development (5 min)
+### Core Capabilities
 
-### Prerequisites
+- **Voice Interaction**: Natural conversation using Deepgram STT and Cartesia sonic-3 TTS
+- **Video Avatar**: Real-time AI video generation powered by Tavus
+- **Smart Scheduling**: Natural language date parsing (today, tomorrow, next Monday, etc.)
+- **Calendar Integration**: Direct Google Calendar integration for checking availability and booking appointments
+- **Email Confirmations**: Automatic HTML email confirmations sent to clients via Gmail
+- **Business Rules**: Enforces weekday-only appointments (Mon-Fri) during business hours (09:00-17:00)
 
-#### Environment
+### Assistant Capabilities
+
+The AI assistant "Sarah" can:
+
+1. **Check Availability**: Query the tax advisor's calendar for specific days using natural language
+2. **Book Appointments**: Create calendar events with client details and automatically send confirmation emails
+3. **Validate Requests**: Reject weekend appointments and out-of-hours bookings with helpful suggestions
+4. **Collect Information**: Gather client name, preferred date/time, and email address
+5. **Confirm Details**: Review appointment details before finalizing the booking
+
+## Prerequisites
+
+### Environment
 
 - Python 3.10 or later
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) package manager installed
 
-#### AI Service API keys
+### Required API Keys
 
-You'll need API keys from three services:
+You'll need API keys from the following services:
 
-- [Deepgram](https://console.deepgram.com/signup) for Speech-to-Text
-- [OpenAI](https://auth.openai.com/create-account) for LLM inference
-- [Cartesia](https://play.cartesia.ai/sign-up) for Text-to-Speech
+- [Deepgram](https://console.deepgram.com/signup) - Speech-to-Text
+- [OpenAI](https://auth.openai.com/create-account) - LLM inference (GPT-4)
+- [Cartesia](https://play.cartesia.ai/sign-up) - Text-to-Speech (sonic-3 model)
+- [Tavus](https://tavus.io) - AI video avatar generation
 
-> 💡 **Tip**: Sign up for all three now. You'll need them for both local and cloud deployment.
+### Google Cloud Setup
 
-### Setup
+For calendar and email functionality:
 
-Navigate to the quickstart directory and set up your environment.
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable the following APIs:
+   - Google Calendar API
+   - Gmail API
+3. Create OAuth 2.0 credentials (Desktop application)
+4. Download the credentials file as `credentials.json`
+5. Place `credentials.json` in the project root directory
+
+## Setup
 
 1. Clone this repository
 
    ```bash
-   git clone https://github.com/pipecat-ai/pipecat-quickstart.git
-   cd pipecat-quickstart
+   git clone https://github.com/GAL1LAO/Tax-advisor-scheduler.git
+   cd Tax-advisor-scheduler
    ```
 
-2. Configure your API keys:
-
-   Create a `.env` file:
-
-   ```bash
-   cp env.example .env
-   ```
-
-   Then, add your API keys:
-
-   ```ini
-   DEEPGRAM_API_KEY=your_deepgram_api_key
-   OPENAI_API_KEY=your_openai_api_key
-   CARTESIA_API_KEY=your_cartesia_api_key
-   ```
-
-3. Set up a virtual environment and install dependencies
+2. Install dependencies
 
    ```bash
    uv sync
    ```
 
-### Run your bot locally
+3. Install additional required packages
+
+   ```bash
+   uv add google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
+   uv add "pipecat-ai[tavus]"
+   ```
+
+4. Configure your API keys
+
+   Create a `.env` file:
+
+   ```bash
+   touch .env
+   ```
+
+   Add your API keys:
+
+   ```ini
+   DEEPGRAM_API_KEY=your_deepgram_api_key
+   OPENAI_API_KEY=your_openai_api_key
+   CARTESIA_API_KEY=your_cartesia_api_key
+   TAVUS_API_KEY=your_tavus_api_key
+   TAVUS_REPLICA_ID=your_tavus_replica_id
+   ```
+
+5. Set up Google OAuth
+
+   On first run, the bot will open a browser window for Google OAuth authentication. Grant access to:
+   - Google Calendar (read/write)
+   - Gmail (send emails)
+
+   The authentication token will be saved as `token.json` for future use.
+
+## Run the Bot
 
 ```bash
 uv run bot.py
 ```
 
-**Open http://localhost:7860 in your browser** and click `Connect` to start talking to your bot.
+**Open http://localhost:7860 in your browser** and click `Connect` to start interacting with the scheduling assistant.
 
-> 💡 First run note: The initial startup may take ~20 seconds as Pipecat downloads required models and imports.
+> 💡 **First run note**: Initial startup takes ~20 seconds as Pipecat downloads required models. Google OAuth authentication will also launch in your browser on first run.
 
-🎉 **Success!** Your bot is running locally. Now let's deploy it to production so others can use it.
+## Usage Examples
 
----
+Once connected, you can interact with Sarah, the scheduling assistant:
 
-## Step 2: Deploy to Production (5 min)
+- **Check availability**: "What's the advisor's schedule for tomorrow?"
+- **Book appointment**: "I'd like to book an appointment for next Monday at 2 PM"
+- **Get recent emails**: "Can you check my recent emails?"
 
-Transform your local bot into a production-ready service. Pipecat Cloud handles scaling, monitoring, and global deployment.
+The bot will:
+1. Greet you professionally
+2. Check calendar availability for your requested time
+3. Collect your name and email address
+4. Confirm the appointment details
+5. Create the calendar event
+6. Send an HTML confirmation email to your address
 
-### Prerequisites
+## File Structure
 
-1. [Sign up for Pipecat Cloud](https://pipecat.daily.co/sign-up).
+- `bot.py` - Main bot configuration with pipeline setup and AI assistant prompt
+- `functions.py` - Calendar and Gmail integration functions
+- `credentials.json` - Google OAuth credentials (not in version control)
+- `token.json` - Google OAuth token (auto-generated, not in version control)
+- `.env` - API keys (not in version control)
 
-2. Set up Docker for building your bot image:
+## Business Hours
 
-   - **Install [Docker](https://www.docker.com/)** on your system
-   - **Create a [Docker Hub](https://hub.docker.com/) account**
-   - **Login to Docker Hub:**
+The bot enforces the following rules:
+- **Weekdays only**: Monday through Friday
+- **Business hours**: 09:00 to 17:00 (9 AM to 5 PM)
+- **Default duration**: 60 minutes (1 hour)
 
-     ```bash
-     docker login
-     ```
+Weekend requests and out-of-hours appointments are politely rejected with alternative suggestions.
 
-3. Install the Pipecat CLI
+## Tech Stack
 
-   ```bash
-   uv tool install pipecat-ai-cli
-   ```
-
-   > Tip: You can run the `pipecat` CLI using the `pc` alias.
-
-### Configure your deployment
-
-The `pcc-deploy.toml` file tells Pipecat Cloud how to run your bot. **Update the image field** with your Docker Hub username by editing `pcc-deploy.toml`.
-
-```ini
-agent_name = "quickstart"
-image = "YOUR_DOCKERHUB_USERNAME/quickstart:0.1"  # 👈 Update this line
-secret_set = "quickstart-secrets"
-
-[scaling]
-	min_agents = 1
-```
-
-**Understanding the TOML file settings:**
-
-- `agent_name`: Your bot's name in Pipecat Cloud
-- `image`: The Docker image to deploy (format: `username/image:version`)
-- `secret_set`: Where your API keys are stored securely
-- `min_agents`: Number of bot instances to keep ready (1 = instant start)
-
-> 💡 Tip: [Set up `image_credentials`](https://docs.pipecat.ai/deployment/pipecat-cloud/fundamentals/secrets#image-pull-secrets) in your TOML file for authenticated image pulls
-
-### Log in to Pipecat Cloud
-
-To start using the CLI, authenticate to Pipecat Cloud:
-
-```bash
-pipecat cloud auth login
-```
-
-You'll be presented with a link that you can click to authenticate your client.
-
-### Configure secrets
-
-Upload your API keys to Pipecat Cloud's secure storage:
-
-```bash
-pipecat cloud secrets set quickstart-secrets --file .env
-```
-
-This creates a secret set called `quickstart-secrets` (matching your TOML file) and uploads all your API keys from `.env`.
-
-### Build and deploy
-
-Build your Docker image and push to Docker Hub:
-
-```bash
-pipecat cloud docker build-push
-```
-
-Deploy to Pipecat Cloud:
-
-```bash
-pipecat cloud deploy
-```
-
-### Connect to your agent
-
-1. Open your [Pipecat Cloud dashboard](https://pipecat.daily.co/)
-2. Select your `quickstart` agent → **Sandbox**
-3. Allow microphone access and click **Connect**
-
----
-
-## What's Next?
-
-**🔧 Customize your bot**: Modify `bot.py` to change personality, add functions, or integrate with your data  
-**📚 Learn more**: Check out [Pipecat's docs](https://docs.pipecat.ai/) for advanced features  
-**💬 Get help**: Join [Pipecat's Discord](https://discord.gg/pipecat) to connect with the community
-
-### Troubleshooting
-
-- **Browser permissions**: Allow microphone access when prompted
-- **Connection issues**: Try a different browser or check VPN/firewall settings
-- **Audio issues**: Verify microphone and speakers are working and not muted
+- **Pipecat**: Voice AI pipeline framework
+- **Deepgram**: Real-time speech-to-text
+- **OpenAI GPT-4**: Natural language understanding and function calling
+- **Cartesia sonic-3**: High-quality text-to-speech
+- **Tavus**: Real-time AI video avatar generation
+- **Google Calendar API**: Appointment scheduling
+- **Gmail API**: Email confirmations
