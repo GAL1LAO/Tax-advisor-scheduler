@@ -54,7 +54,7 @@ from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.daily.transport import DailyParams
-from pipecat.services.tavus.video import TavusVideoService
+# from pipecat.services.tavus.video import TavusVideoService  # Disabled: MediaSoup transport errors
 
 logger.info("✅ All components loaded successfully!")
 
@@ -193,12 +193,14 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
             )
         context_aggregator =  llm.create_context_aggregator(context)
 
-        tavus = TavusVideoService(
-            api_key=os.getenv("TAVUS_API_KEY"),
-            replica_id=os.getenv("TAVUS_REPLICA_ID"),
-            persona_id="pipecat-stream",  # Uses your bot's TTS voice (Cartesia) instead of Tavus persona voice
-            session=session,
-        )
+        # Tavus video disabled due to MediaSoup transport errors
+        # To re-enable: uncomment the import above and this block
+        # tavus = TavusVideoService(
+        #     api_key=os.getenv("TAVUS_API_KEY"),
+        #     replica_id=os.getenv("TAVUS_REPLICA_ID"),
+        #     persona_id="pipecat-stream",  # Uses your bot's TTS voice (Cartesia) instead of Tavus persona voice
+        #     session=session,
+        # )
 
         rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
 
@@ -215,7 +217,7 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
                 context_aggregator.user(),  # User responses
                 llm,  # LLM
                 tts,  # TTS
-                tavus,  # Video generation
+                # tavus,  # Video generation (disabled due to transport errors)
                 transport.output(),  # Transport bot output
                 context_aggregator.assistant(),  # Assistant spoken responses
             ]
@@ -254,20 +256,14 @@ async def bot(runner_args: RunnerArguments):
         "daily": lambda: DailyParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
-            video_out_enabled=True,
-            video_out_is_live=True,
-            video_out_width=1280,
-            video_out_height=720,
+            video_out_enabled=False,  # Disabled: video causes MediaSoup transport errors
             vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
             turn_analyzer=LocalSmartTurnAnalyzerV3(),
         ),
         "webrtc": lambda: TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
-            video_out_enabled=True,
-            video_out_is_live=True,
-            video_out_width=1280,
-            video_out_height=720,
+            video_out_enabled=False,  # Disabled: video causes MediaSoup transport errors
             vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
             turn_analyzer=LocalSmartTurnAnalyzerV3(),
         ),
