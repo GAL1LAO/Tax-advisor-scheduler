@@ -1,6 +1,6 @@
 # Tax Advisor Appointment Scheduler Bot
 
-An AI-powered voice scheduling assistant that helps clients book appointments with a tax advisor. The bot features natural voice interaction, calendar integration, and automated email confirmations.
+An AI-powered voice scheduling assistant that helps clients book appointments with a tax advisor. The bot features natural voice interaction, calendar integration, and automated email confirmations. (https://youtu.be/gol-yjIb-qs)
 
 ## Features
 
