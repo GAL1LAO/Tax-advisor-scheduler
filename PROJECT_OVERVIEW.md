@@ -118,11 +118,11 @@ All functions follow: `async def function_name(params: FunctionCallParams)`
                   ├──── Function Call? ───┐
                   │                        │
                   │                        ▼
-                  │              ┌─────────────────────┐
-                  │              │ functions.py        │
-                  │              │ - get_calendar      │
-                  │              │ - create_event      │
-                  │              └──────────┬──────────┘
+                  │              ┌──────────────────────────────┐
+                  │              │ functions.py                 │
+                  │              │ - get_calendar_events        │
+                  │              │ - create_calendar_event      │
+                  │              └──────────┬───────────────────┘
                   │                         │
                   │                         ▼
                   │              ┌─────────────────────┐
