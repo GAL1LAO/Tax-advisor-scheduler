@@ -50,7 +50,7 @@ For calendar and email functionality:
 4. Download the credentials file as `credentials.json`
 5. Place `credentials.json` in the project root directory
 
-If that is not working please  sign in to the provided google account to see the google calander items and the sent emails as well as use the provided `credentials.json`
+If that is not working please sign in to the provided google account to see the google calander items and the sent emails as well as use the provided `credentials.json`
 
 ## Setup
 
@@ -122,7 +122,6 @@ Once connected, you can interact with Sarah, the scheduling assistant:
 
 - **Check availability**: "What's the advisor's schedule for tomorrow?"
 - **Book appointment**: "I'd like to book an appointment for next Monday at 2 PM"
-- **Get recent emails**: "Can you check my recent emails?"
 
 The bot will:
 1. Greet you professionally
@@ -146,8 +145,9 @@ The bot enforces the following rules:
 - **Weekdays only**: Monday through Friday
 - **Business hours**: 09:00 to 17:00 (9 AM to 5 PM)
 - **Default duration**: 60 minutes (1 hour)
+- **No past bookings**: Cannot book appointments for times that have already passed
 
-Weekend requests and out-of-hours appointments are politely rejected with alternative suggestions.
+Weekend requests, out-of-hours appointments, and past time slots are politely rejected with alternative suggestions. When checking availability for "today," only future time slots are shown.
 
 ## Tech Stack
 

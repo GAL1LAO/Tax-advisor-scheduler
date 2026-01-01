@@ -1,6 +1,19 @@
-"""Bot tool functions for Calendar, Gmail, and WhatsApp.
+"""AI Function Tools for Calendar and Email Operations.
 
-Provides functions for fetching calendar events, Gmail emails, and sending WhatsApp reminders.
+This module contains the callable functions that the LLM can invoke to interact with
+Google Calendar and Gmail APIs. These functions are registered with the OpenAI LLM
+service and can be called during conversations based on user intent.
+
+Core Functions:
+    - get_calendar_events: Query calendar for availability on a specific day
+    - create_calendar_event: Book appointments and send email confirmations to customers
+
+Authentication:
+    Uses Google OAuth 2.0 with credentials.json and auto-generated token.json.
+    Required scopes: calendar (read/write), gmail.send
+
+All functions follow the Pipecat FunctionCallParams pattern for async execution
+and streaming responses back to the user via text-to-speech.
 """
 
 import json
@@ -29,10 +42,23 @@ SCOPES = [
 ]
 
 def get_google_credentials():
-    """Get authenticated Google credentials for Calendar and Gmail APIs.
-    
+    """Authenticate and retrieve Google API credentials using OAuth 2.0.
+
+    Handles the complete OAuth flow including:
+    - Loading existing tokens from token.json if available
+    - Refreshing expired tokens automatically
+    - Initiating new OAuth flow if credentials are invalid
+    - Saving tokens for future use
+
+    Environment Variables:
+        GOOGLE_TOKEN_PATH: Path to token.json (default: "token.json")
+        GOOGLE_CREDENTIALS_PATH: Path to credentials.json (default: "credentials.json")
+
     Returns:
-        Credentials: Authenticated Google OAuth2 credentials
+        Credentials: Authenticated Google OAuth2 credentials with calendar and gmail.send scopes
+
+    Raises:
+        FileNotFoundError: If credentials.json is not found at the specified path
     """
     creds = None
     token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
@@ -63,13 +89,27 @@ def get_google_credentials():
 
 
 def parse_relative_date(date_description: str = "today") -> tuple[datetime, datetime]:
-    """Parse relative date descriptions like 'today', 'tomorrow', 'next week' into date range.
+    """Convert natural language date descriptions to datetime range.
+
+    Parses conversational date references and converts them to precise datetime objects
+    representing the start (00:00:00) and end (23:59:59) of the requested day.
+
+    Supported Formats:
+        - Relative: "today", "tomorrow", "yesterday"
+        - Weekdays: "monday", "tuesday", etc. or "next monday", "next friday", etc.
+        - Periods: "next week"
 
     Args:
-        date_description: Natural language date description (e.g., 'today', 'tomorrow', 'next monday')
+        date_description: Natural language date string (case-insensitive)
 
     Returns:
-        tuple: (start_datetime, end_datetime) for the requested day
+        tuple[datetime, datetime]: (day_start, day_end) where:
+            - day_start: Beginning of day at 00:00:00
+            - day_end: Beginning of next day at 00:00:00 (for range queries)
+
+    Example:
+        >>> start, end = parse_relative_date("next monday")
+        >>> # Returns datetime range for upcoming Monday
     """
     now = datetime.now()
     date_lower = date_description.lower().strip()
@@ -130,14 +170,46 @@ def parse_relative_date(date_description: str = "today") -> tuple[datetime, date
 
 
 async def get_calendar_events(params: FunctionCallParams):
-    """Get calendar events for a specified day (today, tomorrow, next week, etc.).
+    """Retrieve calendar events for a specified day to check availability.
+
+    LLM-callable function that queries Google Calendar API for events on a given day.
+    Filters results to show only timed appointments (excluding all-day events) with
+    formatted start/end times for easy readability by the AI assistant.
+
+    IMPORTANT: Automatically filters out events in the past (events that have already started).
+    This prevents customers from seeing or booking time slots that have already passed.
+
+    Flow:
+        1. Extract date_description from LLM function call arguments
+        2. Provide immediate TTS feedback to user
+        3. Parse natural language date to datetime range
+        4. Query Google Calendar API with UTC time range
+        5. Filter to timed events only (ignore all-day events)
+        6. Filter out events that have already started (past time slots)
+        7. Format times for LLM consumption (e.g., "02:00 PM")
+        8. Return JSON array of future events only
 
     Args:
-        params: FunctionCallParams with optional 'date_description' argument
-                (e.g., 'today', 'tomorrow', 'next monday')
+        params: FunctionCallParams containing:
+            - arguments.date_description (str, optional): Natural language date
+              (e.g., 'today', 'tomorrow', 'next monday'). Defaults to 'today'
+            - llm: Reference to push TTS feedback frames
+            - result_callback: Callback to return results to LLM
 
     Returns:
-        str: JSON string of events for the specified day
+        str: JSON-formatted string containing array of events with:
+            - summary: Event title/description
+            - start_time: Formatted start time (e.g., "02:00 PM")
+            - end_time: Formatted end time (e.g., "03:00 PM")
+
+    Example Output:
+        [
+          {
+            "summary": "Client Meeting - John Smith",
+            "start_time": "02:00 PM",
+            "end_time": "03:00 PM"
+          }
+        ]
     """
     try:
         # Get the date description from params (default to 'today')
@@ -170,8 +242,12 @@ async def get_calendar_events(params: FunctionCallParams):
         ).execute()
         
         events = events_result.get('items', [])
-        
+
+        # Get current time for filtering past events (timezone-aware)
+        now = datetime.now().astimezone()
+
         # Filter events to include only summary and simplified times (focusing on timed events)
+        # Also exclude events that have already started (for "today" queries)
         filtered_events = []
         for event in events:
             # We skip events without a 'dateTime' as they are typically all-day events that don't fit the '12:00 PM meeting' structure of the demo.
@@ -183,7 +259,12 @@ async def get_calendar_events(params: FunctionCallParams):
                 # 1. Parse API string (removes 'Z' and converts to Python object)
                 start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00')).astimezone()
                 end_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00')).astimezone()
-                
+
+                # Skip events that have already started (only for today)
+                # This prevents showing/booking appointments in the past
+                if start_dt <= now:
+                    continue
+
                 # 2. Format for LLM readability
                 start_time = start_dt.strftime("%I:%M %p")
                 end_time = end_dt.strftime("%I:%M %p")
@@ -209,18 +290,57 @@ async def get_calendar_events(params: FunctionCallParams):
 
 
 async def create_calendar_event(params: FunctionCallParams):
-    """Create a new calendar event.
+    """Create a calendar appointment and send email confirmation to client.
+
+    LLM-callable function that books an appointment in Google Calendar and automatically
+    sends an HTML-formatted confirmation email to the client via Gmail API.
+
+    IMPORTANT: Validates that the appointment time is in the future. Rejects bookings
+    for time slots that have already passed to prevent scheduling appointments in the past.
+
+    Flow:
+        1. Extract booking details from LLM function call
+        2. Provide immediate TTS feedback to user
+        3. Parse date and time into datetime objects
+        4. Validate appointment is not in the past
+        5. Create calendar event with local timezone handling
+        6. Send HTML/plain-text confirmation email to customer
+        7. Return success confirmation to LLM
+
+    Timezone Handling:
+        Uses system local timezone and converts to Etc/GMT format for Google Calendar.
+        Ensures appointments appear at correct local time regardless of UTC offset.
 
     Args:
-        params: FunctionCallParams with arguments:
-                - title: Event title/summary
-                - date_description: Natural language date (e.g., 'today', 'tomorrow', 'next monday')
-                - start_time: Start time in 24h format (e.g., '14:00', '09:30')
-                - duration_minutes: Duration in minutes (default: 60)
-                - description: Optional event description
+        params: FunctionCallParams containing:
+            - arguments.title (str, required): Event title including client name
+            - arguments.date_description (str, required): Natural language date
+              (e.g., 'today', 'tomorrow', 'next monday')
+            - arguments.start_time (str, required): 24-hour format time (e.g., '14:00')
+            - arguments.customer_email (str, required): Client's email for confirmation
+            - arguments.duration_minutes (int, optional): Duration in minutes (default: 60)
+            - arguments.description (str, optional): Additional notes about appointment
+            - llm: Reference to push TTS feedback frames
+            - result_callback: Callback to return results to LLM
 
     Returns:
-        str: Confirmation message with event details
+        str: Success message with appointment details and email confirmation status
+
+    Email Content:
+        Sends both plain-text and HTML versions with:
+        - Appointment date and time
+        - Duration
+        - Location (Tax Advisor's Office)
+        - Professional formatting
+
+    Example:
+        LLM calls with arguments:
+        {
+            "title": "Appointment with John Smith",
+            "date_description": "next monday",
+            "start_time": "14:00",
+            "customer_email": "john@example.com"
+        }
     """
     try:
         # Extract parameters
@@ -244,6 +364,17 @@ async def create_calendar_event(params: FunctionCallParams):
             event_end = event_start + timedelta(minutes=duration_minutes)
         except ValueError:
             error_msg = f"Invalid time format: {start_time}. Please use HH:MM format (e.g., '14:00')"
+            logger.error(f"❌ {error_msg}")
+            await params.result_callback(error_msg)
+            return error_msg
+
+        # Validate that appointment is not in the past (timezone-aware comparison)
+        # Make event_start timezone-aware for proper comparison
+        now = datetime.now().astimezone()
+        event_start_aware = event_start.replace(tzinfo=now.tzinfo)
+
+        if event_start_aware <= now:
+            error_msg = f"Cannot book appointment in the past. The requested time {event_start.strftime('%I:%M %p')} has already passed. Please choose a future time slot."
             logger.error(f"❌ {error_msg}")
             await params.result_callback(error_msg)
             return error_msg
@@ -376,64 +507,5 @@ async def create_calendar_event(params: FunctionCallParams):
     except Exception as e:
         logger.error(f"❌ Failed to create calendar event: {e}")
         error_result = f"Error creating calendar event: {str(e)}"
-        await params.result_callback(error_result)
-        return error_result
-
-
-async def get_gmail_emails(params: FunctionCallParams):
-    """Get the 2 most recent Gmail emails.
-    
-    Args:
-        params: FunctionCallParams (no arguments needed)
-        
-    Returns:
-        str: JSON string of 2 most recent emails
-    """
-    try:
-        # Bot speaks immediately before checking inbox
-        await params.llm.push_frame(TTSSpeakFrame("Let me check your inbox"))
-        
-        logger.info(f"📧 Fetching 2 most recent Gmail emails")
-        
-        # Get authenticated Gmail service
-        creds = get_google_credentials()
-        service = build('gmail', 'v1', credentials=creds)
-        
-        # Get message IDs (list() only returns IDs, not full emails)
-        message_ids = service.users().messages().list(
-            userId='me',
-            maxResults=2
-        ).execute().get('messages', [])
-        
-        # Extract snippet, subject, and from for each email
-        emails_list = []
-        for msg in message_ids:
-            message = service.users().messages().get(
-                userId='me',
-                id=msg['id'],
-                format='metadata'
-            ).execute()
-            
-            # Extract snippet, subject, and from
-            snippet = message['snippet']
-            headers = message['payload']['headers']
-            subject = next(h['value'] for h in headers if h['name'] == 'Subject')
-            sender = next(h['value'] for h in headers if h['name'] == 'From')
-            
-            emails_list.append({
-                'snippet': snippet,
-                'subject': subject,
-                'from': sender
-            })
-        
-        result = json.dumps(emails_list, indent=2)
-        
-        logger.info(f"✅ Gmail emails retrieved: {len(emails_list)} emails")
-        await params.result_callback(result)
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to get Gmail emails: {e}")
-        error_result = f"Error retrieving Gmail emails: {str(e)}"
         await params.result_callback(error_result)
         return error_result
