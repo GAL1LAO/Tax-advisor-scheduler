@@ -21,6 +21,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import base64
 
 from dotenv import load_dotenv
@@ -318,6 +320,7 @@ async def create_calendar_event(params: FunctionCallParams):
               (e.g., 'today', 'tomorrow', 'next monday')
             - arguments.start_time (str, required): 24-hour format time (e.g., '14:00')
             - arguments.customer_email (str, required): Client's email for confirmation
+            - arguments.customer_name (str, required): Client's name for personalized email
             - arguments.duration_minutes (int, optional): Duration in minutes (default: 60)
             - arguments.description (str, optional): Additional notes about appointment
             - llm: Reference to push TTS feedback frames
@@ -348,8 +351,9 @@ async def create_calendar_event(params: FunctionCallParams):
         date_description = params.arguments.get('date_description', 'today')
         start_time = params.arguments.get('start_time', '09:00')
         duration_minutes = int(params.arguments.get('duration_minutes', 60))
-        description = params.arguments.get('description', '')
         customer_email = params.arguments.get('customer_email', '')
+        customer_name = params.arguments.get('customer_name', 'Client')
+        purpose = params.arguments.get('purpose', 'Tax consultation')
 
         # Bot speaks immediately
         await params.llm.push_frame(TTSSpeakFrame(f"Booking your appointment for {date_description}"))
@@ -404,7 +408,7 @@ async def create_calendar_event(params: FunctionCallParams):
         # Create event object with timezone
         event = {
             'summary': title,
-            'description': description,
+            'description': f"Purpose: {purpose}\nClient: {customer_name}\nEmail: {customer_email}",
             'start': {
                 'dateTime': start_rfc3339,
                 'timeZone': local_tz_str,
@@ -415,8 +419,11 @@ async def create_calendar_event(params: FunctionCallParams):
             },
         }
 
-        # Insert the event
-        created_event = service.events().insert(calendarId='primary', body=event).execute()
+        # Insert the event (no attendees - we'll send ICS attachment in email instead)
+        created_event = service.events().insert(
+            calendarId='primary',
+            body=event
+        ).execute()
 
         # Send confirmation email if customer email is provided
         email_sent = False
@@ -425,57 +432,97 @@ async def create_calendar_event(params: FunctionCallParams):
                 # Build Gmail service
                 gmail_service = build('gmail', 'v1', credentials=creds)
 
-                # Create email message
-                message = MIMEMultipart('alternative')
+                # Create email message with mixed type for attachments
+                message = MIMEMultipart('mixed')
                 message['To'] = customer_email
                 message['From'] = 'me'  # 'me' represents the authenticated user
-                message['Subject'] = f'Appointment Confirmation - {event_start.strftime("%B %d, %Y")}'
+                message['Subject'] = f'Appointment Confirmation - {event_start.strftime("%B %d, %Y")} at {event_start.strftime("%I:%M %p")}'
 
                 # Email body (plain text and HTML)
                 text_body = f"""
-                Dear Client,
+Dear {customer_name},
 
-                Your appointment has been confirmed!
+Your appointment has been confirmed!
 
-                Appointment Details:
-                - Date: {event_start.strftime('%A, %B %d, %Y')}
-                - Time: {event_start.strftime('%I:%M %p')} - {event_end.strftime('%I:%M %p')}
-                - Duration: {duration_minutes} minutes
-                - Location: Tax Advisor's Office
+Appointment Details:
+- Purpose: {purpose}
+- Date: {event_start.strftime('%A, %B %d, %Y')}
+- Time: {event_start.strftime('%I:%M %p')} - {event_end.strftime('%I:%M %p')}
+- Duration: {duration_minutes} minutes
+- Location: Tax Advisor's Office - Maximilianstraße 35, 80539 Munich
 
-                If you need to reschedule or cancel, please contact us as soon as possible.
+If you need to reschedule or cancel, please contact us:
+- Email: adrian.fintech.2026@gmail.com
+- Phone: +49 89 123 4567
 
-                Best regards,
-                Tax Advisory Office
+Best regards,
+Adriana
                 """
 
                 html_body = f"""
                 <html>
                 <body style="font-family: Arial, sans-serif;">
                     <h2>Appointment Confirmation</h2>
-                    <p>Dear Client,</p>
+                    <p>Dear {customer_name},</p>
                     <p>Your appointment has been confirmed!</p>
 
                     <h3>Appointment Details:</h3>
                     <ul>
+                        <li><strong>Purpose:</strong> {purpose}</li>
                         <li><strong>Date:</strong> {event_start.strftime('%A, %B %d, %Y')}</li>
                         <li><strong>Time:</strong> {event_start.strftime('%I:%M %p')} - {event_end.strftime('%I:%M %p')}</li>
                         <li><strong>Duration:</strong> {duration_minutes} minutes</li>
-                        <li><strong>Location:</strong> Tax Advisor's Office</li>
+                        <li><strong>Location:</strong> Tax Advisor's Office - Maximilianstraße 35, 80539 Munich</li>
                     </ul>
 
-                    <p>If you need to reschedule or cancel, please contact us as soon as possible.</p>
+                    <p>If you need to reschedule or cancel, please contact us:</p>
+                    <ul>
+                        <li><strong>Email:</strong> <a href="mailto:adrian.fintech.2026@gmail.com">adrian.fintech.2026@gmail.com</a></li>
+                        <li><strong>Phone:</strong> +49 89 123 4567</li>
+                    </ul>
 
-                    <p>Best regards,<br>Tax Advisory Office</p>
+                    <p>Best regards,<br>Adriana</p>
                 </body>
                 </html>
                 """
 
-                # Attach both plain text and HTML versions
-                part1 = MIMEText(text_body, 'plain')
-                part2 = MIMEText(html_body, 'html')
-                message.attach(part1)
-                message.attach(part2)
+                # Create alternative part for text/html body
+                body_part = MIMEMultipart('alternative')
+                body_part.attach(MIMEText(text_body, 'plain'))
+                body_part.attach(MIMEText(html_body, 'html'))
+                message.attach(body_part)
+
+                # Create ICS calendar file content
+                # Convert to UTC for ICS format
+                utc_start = event_start.astimezone(timezone.utc)
+                utc_end = event_end.astimezone(timezone.utc)
+
+                ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Tax Advisory Office//Appointment//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:{created_event.get('id', '')}@taxadvisor.com
+DTSTAMP:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}
+DTSTART:{utc_start.strftime('%Y%m%dT%H%M%SZ')}
+DTEND:{utc_end.strftime('%Y%m%dT%H%M%SZ')}
+SUMMARY:{title}
+DESCRIPTION:{purpose}
+LOCATION:Tax Advisor's Office - Maximilianstraße 35, 80539 Munich
+ORGANIZER;CN=Adriana:mailto:adrian.fintech.2026@gmail.com
+ATTENDEE;CN={customer_name};RSVP=TRUE:mailto:{customer_email}
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR"""
+
+                # Attach ICS file
+                ics_attachment = MIMEBase('text', 'calendar', method='REQUEST')
+                ics_attachment.set_payload(ics_content)
+                encoders.encode_base64(ics_attachment)
+                ics_attachment.add_header('Content-Disposition', 'attachment', filename='appointment.ics')
+                ics_attachment.add_header('Content-class', 'urn:content-classes:calendarmessage')
+                message.attach(ics_attachment)
 
                 # Encode message
                 raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')

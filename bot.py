@@ -136,16 +136,20 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
                         "type": "integer",
                         "description": "Duration of the appointment in minutes (default: 60 for standard 1-hour appointment)",
                     },
-                    "description": {
-                        "type": "string",
-                        "description": "Optional notes about the appointment (e.g., 'Tax consultation', 'Annual tax return review')",
-                    },
                     "customer_email": {
                         "type": "string",
                         "description": "Customer's email address to send appointment confirmation (e.g., 'client@example.com')",
+                    },
+                    "customer_name": {
+                        "type": "string",
+                        "description": "Customer's first name for personalized email greeting (e.g., 'John', 'Maria')",
+                    },
+                    "purpose": {
+                        "type": "string",
+                        "description": "The purpose or reason for the appointment (e.g., 'Tax return filing', 'Tax consultation', 'Annual review')",
                     }
                 },
-                "required": ["title", "date_description", "start_time", "customer_email"],
+                "required": ["title", "date_description", "start_time", "customer_email", "customer_name", "purpose"],
             },
         },
     }
